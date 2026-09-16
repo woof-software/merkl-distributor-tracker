@@ -48,7 +48,6 @@ cp .env.example .env   # fill in RPC URLs and Slack credentials
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook — **or** |
 | `SLACK_BOT_TOKEN` + `SLACK_CHANNEL` | Bot token (`chat:write`) and channel id/name |
 | `WINDOW_HOURS` | Length of the "last day" window (default `24`) |
-| `SLACK_MAX_TXS_PER_CHAIN` | Cap on transactions listed per chain in Slack (default `20`) |
 
 ## Local usage
 
@@ -96,7 +95,7 @@ Exit code is `2` if any chain failed (the report is still produced/sent with tha
 
 ## Daily Slack report on a server
 
-`npm run report:slack` sends the report and prints nothing else. Pick one of:
+`npm run report:slack` prints the same tables as `npm run report` and also sends them to Slack. Pick one of:
 
 ### GitHub Actions (no server needed)
 

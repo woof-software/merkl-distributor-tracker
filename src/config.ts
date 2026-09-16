@@ -52,4 +52,3 @@ export function rpcUrl(c: ChainConfig): string {
 }
 
 export const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? 24);
-export const SLACK_MAX_TXS_PER_CHAIN = Number(process.env.SLACK_MAX_TXS_PER_CHAIN ?? 20);

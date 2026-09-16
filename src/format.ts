@@ -1,6 +1,6 @@
 import { formatUnits } from 'viem';
-import { SLACK_MAX_TXS_PER_CHAIN, TOKEN_DECIMALS, TOKEN_SYMBOL } from './config.js';
-import type { Report, TxSummary } from './report.js';
+import { TOKEN_DECIMALS, TOKEN_SYMBOL } from './config.js';
+import type { Report } from './report.js';
 
 export function fmtAmount(wei: bigint, decimals = 2): string {
   const n = Number(formatUnits(wei, TOKEN_DECIMALS));
@@ -19,8 +19,6 @@ export function fmtPct(part: bigint, whole: bigint): string {
 export function fmtTs(ts: number): string {
   return new Date(ts * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
 }
-
-const short = (h: string) => `${h.slice(0, 8)}…${h.slice(-6)}`;
 
 function pad(s: string, n: number, right = false): string {
   return right ? s.padStart(n) : s.padEnd(n);
@@ -89,49 +87,24 @@ export function consoleReport(r: Report, opts: { txs?: boolean } = {}): string {
   return out.join('\n');
 }
 
-function slackTxLine(t: TxSummary, link: (h: string) => string): string {
-  const who = t.users.length === 1 ? short(t.users[0]) : `${t.users.length} users`;
-  return `• <${link(t.txHash)}|${short(t.txHash)}> — *${fmtAmount(t.amount, 4)} ${TOKEN_SYMBOL}* — ${who} — ${fmtTs(t.timestamp).slice(0, 16)}`;
+/** Slack sections cap markdown at 3000 chars; keep tables monospaced and split on newlines. */
+function slackCodeBlocks(text: string): unknown[] {
+  const max = 2900;
+  const blocks: unknown[] = [];
+  let remaining = text;
+  while (remaining.length) {
+    let chunk = remaining.slice(0, max);
+    if (remaining.length > max) {
+      const lastNl = chunk.lastIndexOf('\n');
+      if (lastNl > max / 2) chunk = chunk.slice(0, lastNl);
+    }
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: '```' + chunk + '```' } });
+    remaining = remaining.slice(chunk.length).replace(/^\n/, '');
+  }
+  return blocks.slice(0, 50);
 }
 
-export function slackMessage(r: Report): { text: string; blocks: unknown[] } {
-  const date = new Date(r.windowEnd * 1000).toISOString().slice(0, 10);
-  const text = `Merkl ${TOKEN_SYMBOL} claims ${date}: last day ${fmtAmount(r.daily.amount)} ${TOKEN_SYMBOL} in ${r.daily.txCount} tx · all-time ${fmtAmount(r.total.amount)} / ${fmtAmount(r.budget)} ${TOKEN_SYMBOL} (${fmtPct(r.total.amount, r.budget)}) in ${r.total.txCount} tx`;
-
-  const blocks: unknown[] = [
-    { type: 'header', text: { type: 'plain_text', text: `Merkl ${TOKEN_SYMBOL} claims — ${date}` } },
-    {
-      type: 'section',
-      fields: [
-        { type: 'mrkdwn', text: `*Last day*\n${fmtAmount(r.daily.amount)} ${TOKEN_SYMBOL} (${fmtPct(r.daily.amount, r.budget)} of budget)\n${r.daily.txCount} tx · ${r.daily.uniqueUsers} claimers` },
-        { type: 'mrkdwn', text: `*All-time*\n${fmtAmount(r.total.amount)} / ${fmtAmount(r.budget)} ${TOKEN_SYMBOL} (${fmtPct(r.total.amount, r.budget)})\n${r.total.txCount} tx · ${r.total.uniqueUsers} claimers` },
-        { type: 'mrkdwn', text: `*Multisig balance*\n${fmtAmount(r.multisigBalance)} ${TOKEN_SYMBOL} native across all chains` },
-      ],
-    },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `Window ${fmtTs(r.windowStart)} → ${fmtTs(r.windowEnd)} · since launch ${fmtTs(r.launchTimestamp)}` }] },
-    { type: 'section', text: { type: 'mrkdwn', text: '*Claims*\n```' + summaryTable(r) + '```' } },
-    { type: 'section', text: { type: 'mrkdwn', text: '*Budget usage*\n```' + budgetTable(r) + '```' } },
-  ];
-
-  for (const c of r.chains) {
-    if (c.error) {
-      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${c.chain.name}* — :warning: ${c.error}` } });
-      continue;
-    }
-    if (c.dailyTxs.length === 0) continue;
-    const shown = c.dailyTxs.slice(0, SLACK_MAX_TXS_PER_CHAIN);
-    const lines = shown.map((t) => slackTxLine(t, c.chain.explorerTx));
-    if (c.dailyTxs.length > shown.length) lines.push(`_…and ${c.dailyTxs.length - shown.length} more_`);
-    // Slack caps a section at 3000 chars; chunk the list if needed.
-    const chunks: string[] = [];
-    let cur = `*${c.chain.name}* — ${c.dailyTxs.length} tx, ${fmtAmount(c.daily.amount)} ${TOKEN_SYMBOL}\n`;
-    for (const l of lines) {
-      if (cur.length + l.length + 1 > 2900) { chunks.push(cur); cur = ''; }
-      cur += l + '\n';
-    }
-    chunks.push(cur);
-    for (const ch of chunks) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: ch.trimEnd() } });
-  }
-
-  return { text, blocks: blocks.slice(0, 50) };
+export function slackMessage(r: Report, opts: { txs?: boolean } = {}): { text: string; blocks: unknown[] } {
+  const body = consoleReport(r, opts);
+  return { text: body, blocks: slackCodeBlocks(body) };
 }

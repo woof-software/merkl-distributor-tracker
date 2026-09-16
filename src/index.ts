@@ -46,11 +46,11 @@ if (values.json) {
 }
 
 if (values['slack-preview']) {
-  console.log(JSON.stringify(slackMessage(report), null, 2));
+  console.log(JSON.stringify(slackMessage(report, { txs: values.txs }), null, 2));
 }
 
 if (values.slack) {
-  await sendToSlack(slackMessage(report));
+  await sendToSlack(slackMessage(report, { txs: values.txs }));
   console.error('Sent to Slack.');
 }
 
