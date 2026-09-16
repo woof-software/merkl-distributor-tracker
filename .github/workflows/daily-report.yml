@@ -1,0 +1,34 @@
+name: Daily Merkl COMP claims report
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC every day
+  workflow_dispatch:       # allow manual runs from the Actions tab
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Launch-block lookups are immutable; cache them between runs.
+      - uses: actions/cache@v4
+        with:
+          path: data
+          key: launch-blocks-v1
+      - run: npm run report:slack
+        env:
+          RPC_MAINNET: ${{ secrets.RPC_MAINNET }}
+          RPC_BASE: ${{ secrets.RPC_BASE }}
+          RPC_ARBITRUM: ${{ secrets.RPC_ARBITRUM }}
+          RPC_UNICHAIN: ${{ secrets.RPC_UNICHAIN }}
+          RPC_POLYGON: ${{ secrets.RPC_POLYGON }}
+          RPC_OPTIMISM: ${{ secrets.RPC_OPTIMISM }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
